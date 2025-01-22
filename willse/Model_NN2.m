@@ -25,7 +25,6 @@ NN = dlnetwork([
     fullyConnectedLayer(2, "Name", "OutputLayer", "WeightsInitializer", "glorot")
     softmaxLayer("Name", "Softmax")
 ]);
-NN = dlnetwork(NN);
 
 % ==============================================================
 
@@ -108,10 +107,13 @@ function [X, Y, Y_real] = prepare_month_data(i_month)
     valid_rows = good_today & all(~isnan([rtxm_morning, rtxm_lunch, rtxm_afternoon, rtxmcf_morning, rtxmcf_lunch, rtxmrr_morning, rtxmrr_lunch, r_afternoon]), 2);
 
     % Normalize and Generate X
-    X_1 = normalize_feature(rtxm_morning(valid_rows));
-    X_2 = normalize_feature(rtxm_lunch(valid_rows));
-    X_3 = normalize_feature(vol_morning(valid_rows));
-    X = [X_1, X_2, X_3];
+    X_1 = rtxm_morning(valid_rows);
+    X_2 = rtxm_lunch(valid_rows);
+    X_3 = rtxmcf_morning(valid_rows);
+    X_4 = rtxmcf_lunch(valid_rows);
+    X_5 = rtxmrr_morning(valid_rows);
+    X_6 = rtxmrr_lunch(valid_rows);
+    X = [X_1, X_2, X_3, X_4, X_5, X_6];
 
     % Generate Y
     Y = rtxm_afternoon(valid_rows);
