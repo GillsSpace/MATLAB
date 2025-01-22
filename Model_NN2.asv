@@ -11,7 +11,7 @@ loss_function = 'mse';
 
 options = trainingOptions("adam", ...
     LearnRateSchedule = "polynomial", ...
-    MaxEpochs = 1, ... 
+    MaxEpochs = 10, ... 
     MiniBatchSize = 128, ...
     ExecutionEnvironment = "cpu", ...
     Verbose=false, ...
@@ -49,9 +49,9 @@ for i = 1:total_months
 
     i_month = increment_month(start_month, i - 1);
 
-    [X_data, Y_data] = prepare_month_data(i_month);
+    [X_data, Y_data, Y_real] = prepare_month_data(i_month);
 
-    [accuracy, correct_predictions, total_predictions, balance, mean, sd, acc_50, acc_20, acc_5, labeles] = calculate_statistics(NN, X_data, Y_data);
+    [accuracy, correct_predictions, total_predictions, balance, mean, sd, acc_50, acc_20, acc_5, labels] = calculate_statistics(NN, X_data, Y_data);
 
     fprintf("Accuracy    : %.2f%% (%d/%d correct predictions)\n", accuracy, correct_predictions, total_predictions);
     fprintf("Accuracy 50%%: %.2f%%\n", acc_50);
@@ -60,9 +60,11 @@ for i = 1:total_months
     fprintf("Balance: %.2f%%\n", balance);
     fprintf("Mean: %.2f // SD: %.2f\n\n" , mean,sd);
 
-    labels(labels==0) = -1;
+    labels = double(labels);
+    labels(labels=0) = -1;
 
-    monthly_result = iccalc()
+    monthly_result = iccalc(labels,Y_real);
+    monthly_mr(i) = monthly_result.mr;
 
     NN = trainnet(X_data, Y_data, NN, loss_function, options);
 
@@ -88,7 +90,7 @@ function new_date = increment_month(base_date, months_to_add)
     end
 end
 
-function [X, Y] = prepare_month_data(i_month)
+function [X, Y, Y_real] = prepare_month_data(i_month)
     
     good_today = loaddata('good_now', i_month, i_month);
     rtxm_morning = loaddata('rtxm_byti', i_month, i_month, 3);
@@ -96,7 +98,9 @@ function [X, Y] = prepare_month_data(i_month)
     rtxm_afternoon = loaddata('rtxm_byti', i_month, i_month, 5);
     vol_morning = loaddata('volcum_bytm', i_month, i_month, 2);
 
-    valid_rows = good_today & all(~isnan([rtxm_morning, rtxm_lunch, vol_morning, rtxm_afternoon]), 2);
+    r_afternoon = loaddata('r_byti', i_month, i_month, 5);
+
+    valid_rows = good_today & all(~isnan([rtxm_morning, rtxm_lunch, vol_morning, rtxm_afternoon, r_afternoon]), 2);
 
     % Normalize and Generate X
     X_1 = normalize_feature(rtxm_morning(valid_rows));
@@ -108,6 +112,7 @@ function [X, Y] = prepare_month_data(i_month)
     Y = rtxm_afternoon(valid_rows);
     Y = Y > 0;
     Y = double(Y);
+    Y_real = r_afternoon(valid_rows);
 end
 
 function X_norm = normalize_feature(feature)
