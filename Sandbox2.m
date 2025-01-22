@@ -1,14 +1,12 @@
 %% Data Preparation
 % Define and shuffle input ranges
-x = -10:0.0001:10;
+x = -10:0.0001:10; % Reduced step size for visualization
 y = -10:0.0001:10;
 x = x(randperm(length(x)));
 y = y(randperm(length(y)));
 
-% Compute outputs and classify
-z_values = x .* y + 1; % Inline function for performance
-z_classes = z_values > 0;
-z_onehot = double([z_classes; ~z_classes]');
+% Compute outputs
+z_values = (x.^2) .* y + 1; % Function output (continuous)
 
 % Preallocate training/testing indices
 num_data = numel(x);
@@ -19,49 +17,48 @@ test_idx = num_train+1:num_data;
 % Split into training/testing data
 x_train = x(train_idx);
 y_train = y(train_idx);
-z_train = z_onehot(train_idx, :);
+z_train = z_values(train_idx);
 
 x_test = x(test_idx);
 y_test = y(test_idx);
-z_test = z_onehot(test_idx, :);
+z_test = z_values(test_idx);
 
 %% Neural Network Definition
 NN = dlnetwork([
-    featureInputLayer(2, "Name", "InputLayer")
+    featureInputLayer(2, "Name", "InputLayer") % Two input features: x and y
     fullyConnectedLayer(32, "Name", "HiddenLayer1", "WeightsInitializer", "he")
     reluLayer("Name", "ReLU")
     dropoutLayer(0.2, "Name", "Dropout")
-    fullyConnectedLayer(2, "Name", "OutputLayer", "WeightsInitializer", "glorot")
-    softmaxLayer("Name", "Softmax")
+    fullyConnectedLayer(1, "Name", "OutputLayer", "WeightsInitializer", "glorot") % Single output (for regression)
 ]);
 
 %% Training Configuration
+loss_function = 'mse'; % Use mean squared error for regression
 training_options = trainingOptions("adam", ...
     LearnRateSchedule = "polynomial", ...
-    MaxEpochs = 5, ...
+    MaxEpochs = 30, ...
     MiniBatchSize = 128, ...
     ExecutionEnvironment = "cpu", ...
     Verbose = true, ...
     Plots = "training-progress");
 
 %% Train and Test the Neural Network
-NN = trainnet([x_train', y_train'], z_train, NN, 'crossentropy', training_options);
-Results = testnet(NN, [x_test', y_test'], z_test, "crossentropy");
+NN = trainnet([x_train', y_train'], z_train', NN, loss_function, training_options);
+Results = testnet(NN, [x_test', y_test'], z_test', loss_function);
 
 %% Visualization: Generate 3D Plots
 % Create a grid for x and y
 [x_grid, y_grid] = meshgrid(-10:0.5:10, -10:0.5:10);
-grid_points = [x_grid(:), y_grid(:)];
+grid_points = [x_grid(:), y_grid(:)]'; % Transpose to make it 2-by-N
 
 % Predict using the neural network
-predictions = predict(NN, grid_points')'; % Neural network predictions
-pred_classes = predictions(:, 1) > predictions(:, 2); % Class 1 if positive, else Class 2
+predictions = predict(NN, dlarray(grid_points, 'CB')); % Use dlarray for dlnetwork
 
 % Compute original function output for comparison
-z_orig = x_grid .* y_grid + 1; % Original function
+z_orig = (x_grid.^2) .* y_grid + 1; % Original function
 
 % Reshape predictions for plotting
-z_pred = reshape(pred_classes, size(x_grid));
+z_pred = reshape(extractdata(predictions), size(x_grid));
 
 % Plot original function
 figure;
@@ -76,10 +73,10 @@ colorbar;
 
 % Plot neural network predictions
 subplot(1, 2, 2);
-surf(x_grid, y_grid, double(z_pred)); % Convert logical to double for visualization
-title('Neural Network Predictions (Positive/Negative)');
+surf(x_grid, y_grid, z_pred); % Plot neural network approximation
+title('Neural Network Approximation');
 xlabel('x');
 ylabel('y');
-zlabel('Class');
+zlabel('Approximated z');
 colormap('jet');
 colorbar;

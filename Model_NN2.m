@@ -17,14 +17,14 @@ options = trainingOptions("adam", ...
     Verbose=false, ...
     Plots = "none");
 
-NN = [
+NN = dlnetwork([
     featureInputLayer(3, "Name", "InputLayer")
-    fullyConnectedLayer(32, "Name", "HiddenLayer1","WeightsInitializer", "he") 
+    fullyConnectedLayer(32, "Name", "HiddenLayer1", "WeightsInitializer", "he")
     reluLayer("Name", "ReLU")
-    dropoutLayer(0.2, "Name", "Dropout") 
-    fullyConnectedLayer(1, "Name", "OutputLayer","WeightsInitializer", "glorot")
-    sigmoidLayer("Name", "SigmoidOutput") 
-];
+    dropoutLayer(0.2, "Name", "Dropout")
+    fullyConnectedLayer(2, "Name", "OutputLayer", "WeightsInitializer", "glorot")
+    softmaxLayer("Name", "Softmax")
+]);
 NN = dlnetwork(NN);
 
 % ==============================================================
@@ -51,7 +51,7 @@ for i = 1:total_months
 
     [X_data, Y_data, Y_real] = prepare_month_data(i_month);
 
-    [accuracy, correct_predictions, total_predictions, balance, mean, sd, acc_50, acc_20, acc_5, labels, predictions] = calculate_statistics(NN, X_data, Y_data);
+    [predictions, labels, total_predictions, correct_predictions, accuracy, balance, mean, sd, acc_50, acc_20, acc_5] = calculate_statistics(NN, X_data, Y_data);
 
     fprintf("Accuracy    : %.2f%% (%d/%d correct predictions)\n", accuracy, correct_predictions, total_predictions);
     fprintf("Accuracy 50%%: %.2f%%\n", acc_50);
@@ -95,12 +95,17 @@ function [X, Y, Y_real] = prepare_month_data(i_month)
     good_today = loaddata('good_now', i_month, i_month);
     rtxm_morning = loaddata('rtxm_byti', i_month, i_month, 3);
     rtxm_lunch = loaddata('rtxm_byti', i_month, i_month, 4);
+    rtxmcf_morning = loaddata('rtxmcf_bytm', i_month, i_month, 3);
+    rtxmcf_lunch = loaddata('rtxmcf_bytm', i_month, i_month, 4);
+    rtxmrr_morning = loaddata('rtxmrr_bytm', i_month, i_month, 3);
+    rtxmrr_lunch = loaddata('rtxmrr_bytm', i_month, i_month, 4);
+
     rtxm_afternoon = loaddata('rtxm_byti', i_month, i_month, 5);
-    vol_morning = loaddata('volcum_bytm', i_month, i_month, 2);
+    %vol_morning = loaddata('volcum_bytm', i_month, i_month, 2);
 
     r_afternoon = loaddata('r_byti', i_month, i_month, 5);
 
-    valid_rows = good_today & all(~isnan([rtxm_morning, rtxm_lunch, vol_morning, rtxm_afternoon, r_afternoon]), 2);
+    valid_rows = good_today & all(~isnan([rtxm_morning, rtxm_lunch, rtxm_afternoon, rtxmcf_morning, rtxmcf_lunch, rtxmrr_morning, rtxmrr_lunch, r_afternoon]), 2);
 
     % Normalize and Generate X
     X_1 = normalize_feature(rtxm_morning(valid_rows));
@@ -119,25 +124,25 @@ function X_norm = normalize_feature(feature)
     X_norm = (feature - mean(feature)) / std(feature);
 end
 
-function [accuracy, correct_predictions, total_predictions, balance, avg, sd, acc_50, acc_20, acc_5, predicted_labels, predictions] = calculate_statistics(NN, X, Y)
-    predictions = predict(NN,X);
-    predicted_labels = predictions > 0.5;
+function [F, F_labels, F_count, F_correct, accuracy, balance, avg, sd, F_acc_50, F_acc_20, F_acc_5] = calculate_statistics(NN, X, Y)
+    F = predict(NN,X);
+    F_labels = F > 0.5;
 
-    correct_predictions = sum(predicted_labels == Y);
-    total_predictions = numel(Y);
-    accuracy = correct_predictions / total_predictions * 100;
+    F_correct = sum(F_labels == Y);
+    F_count = numel(Y);
+    accuracy = F_correct / F_count * 100;
 
-    balance = sum(predicted_labels) / total_predictions * 100;
-    avg = mean(predictions);
-    sd = std(predictions);
+    balance = sum(F_labels) / F_count * 100;
+    avg = mean(F);
+    sd = std(F);
 
-    [ NA, idx] = sort(predictions); 
-    var_50 = round(total_predictions / 4);
-    var_20 = round(total_predictions / 10);
-    var_5 = round(total_predictions / 40);
-    acc_50 = sum(Y(idx>total_predictions-var_50 | idx<var_50) == predicted_labels(idx>total_predictions-var_50 | idx<var_50)) / (total_predictions*0.5) * 100;
-    acc_20 = sum(Y(idx>total_predictions-var_20 | idx<var_20) == predicted_labels(idx>total_predictions-var_20 | idx<var_20)) / (total_predictions*0.2) * 100;
-    acc_5 = sum(Y(idx>total_predictions-var_5 | idx<var_5) == predicted_labels(idx>total_predictions-var_5 | idx<var_5)) / (total_predictions*0.05) * 100;
+    [ NA, idx] = sort(F); 
+    var_50 = round(F_count / 4);
+    var_20 = round(F_count / 10);
+    var_5 = round(F_count / 40);
+    F_acc_50 = sum(Y(idx>F_count-var_50 | idx<var_50) == F_labels(idx>F_count-var_50 | idx<var_50)) / (F_count*0.5) * 100;
+    F_acc_20 = sum(Y(idx>F_count-var_20 | idx<var_20) == F_labels(idx>F_count-var_20 | idx<var_20)) / (F_count*0.2) * 100;
+    F_acc_5 = sum(Y(idx>F_count-var_5 | idx<var_5) == F_labels(idx>F_count-var_5 | idx<var_5)) / (F_count*0.05) * 100;
 
 end
 
