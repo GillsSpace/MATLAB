@@ -3,10 +3,12 @@ start_month = 201001;
 end_month = 202212;
 
 INITIAL_BALANCE = 10000;        % 10k
-TC = 0.0010;                    % 10 bps
+TC = 0.0005;                    % 10 bps
 STOCKS_EACH_DAY = 30;
 
-% Neural Network Hyperparameters
+% Neural Network Hyperparameter
+loss_function = 'mse';
+
 options = trainingOptions("adam", ...
     LearnRateSchedule = "polynomial", ...
     MaxEpochs = 1, ... 
@@ -32,12 +34,12 @@ total_months = calculate_total_months(start_month, end_month);
 balance = INITIAL_BALANCE;
 
 % Initialize Results Arrays:
-monthly_mr = zeros(1,total_months-ROLLOVER);
-monthly_balance = zeros(1,total_months-ROLLOVER);
-monthly_traded_mr = zeros(1,total_months-ROLLOVER);
-
-traded_ff = NaN(STOCKS_EACH_DAY,31,total_months-ROLLOVER);
-traded_yy = NaN(STOCKS_EACH_DAY,31,total_months-ROLLOVER);
+monthly_mr = zeros(1,total_months);
+% monthly_balance = zeros(1,total_months-ROLLOVER);
+% monthly_traded_mr = zeros(1,total_months-ROLLOVER);
+% 
+% traded_ff = NaN(STOCKS_EACH_DAY,31,total_months-ROLLOVER);
+% traded_yy = NaN(STOCKS_EACH_DAY,31,total_months-ROLLOVER);
 % ===================================================================
 
 % Main Loop ====================================================
@@ -49,11 +51,20 @@ for i = 1:total_months
 
     [X_data, Y_data] = prepare_month_data(i_month);
 
-    [accuracy, correct_predictions, total_predictions, balance, mean, sd, acc_50, acc_20, acc_5] = calculate_statistics(NN, X_data, Y_data);
+    [accuracy, correct_predictions, total_predictions, balance, mean, sd, acc_50, acc_20, acc_5, labeles] = calculate_statistics(NN, X_data, Y_data);
 
-    fprintf("Accuracy: %.2f%% (%d/%d correct predictions)\n", accuracy, correct_predictions, total_predictions);
+    fprintf("Accuracy    : %.2f%% (%d/%d correct predictions)\n", accuracy, correct_predictions, total_predictions);
+    fprintf("Accuracy 50%%: %.2f%%\n", acc_50);
+    fprintf("Accuracy 20%%: %.2f%%\n", acc_20);
+    fprintf("Accuracy 5%% : %.2f%%\n", acc_5);
+    fprintf("Balance: %.2f%%\n", balance);
+    fprintf("Mean: %.2f // SD: %.2f\n\n" , mean,sd);
 
-    NN = trainnet(X_data, Y_data, NN, 'mse', options);
+    labels(labels==0) = -1;
+
+    monthly_result = iccalc()
+
+    NN = trainnet(X_data, Y_data, NN, loss_function, options);
 
 end
 
@@ -103,7 +114,7 @@ function X_norm = normalize_feature(feature)
     X_norm = (feature - mean(feature)) / std(feature);
 end
 
-function [accuracy, correct_predictions, total_predictions, balance, avg, sd, acc_50, acc_20, acc_5] = calculate_statistics(NN, X, Y)
+function [accuracy, correct_predictions, total_predictions, balance, avg, sd, acc_50, acc_20, acc_5, predicted_labels] = calculate_statistics(NN, X, Y)
     predictions = predict(NN,X);
     predicted_labels = predictions > 0.5;
 
@@ -114,6 +125,14 @@ function [accuracy, correct_predictions, total_predictions, balance, avg, sd, ac
     balance = sum(predicted_labels) / total_predictions * 100;
     avg = mean(predictions);
     sd = std(predictions);
+
+    [ NA, idx] = sort(predictions); 
+    var_50 = round(total_predictions / 4);
+    var_20 = round(total_predictions / 10);
+    var_5 = round(total_predictions / 40);
+    acc_50 = sum(Y(idx>total_predictions-var_50 | idx<var_50) == predicted_labels(idx>total_predictions-var_50 | idx<var_50)) / (total_predictions*0.5) * 100;
+    acc_20 = sum(Y(idx>total_predictions-var_20 | idx<var_20) == predicted_labels(idx>total_predictions-var_20 | idx<var_20)) / (total_predictions*0.2) * 100;
+    acc_5 = sum(Y(idx>total_predictions-var_5 | idx<var_5) == predicted_labels(idx>total_predictions-var_5 | idx<var_5)) / (total_predictions*0.05) * 100;
 
 end
 
