@@ -1,4 +1,3 @@
-
 % Data Hyper-parameters =============================================
 START_MONTH = 201001;
 END_MONTH = 202212;
@@ -24,6 +23,8 @@ traded_mr_result =          zeros(1,total_months-ROLLOVER);
 
 traded_ff = NaN(STOCKS_EACH_DAY,31,total_months-ROLLOVER);
 traded_yy = NaN(STOCKS_EACH_DAY,31,total_months-ROLLOVER);
+
+stock_trade_count = zeros(1,5146);
 
 coef_d = [0,0,0];
 coef_e = [0,0,0];
@@ -220,6 +221,15 @@ while i <= total_months - ROLLOVER
 
         traded_yy(:,j,i) = yyy;
         traded_ff(:,j,i) = fff;
+
+        % Reverse engineer the indices to the original stock indices
+        original_idx_short = find(good_today);
+        original_idx_short = original_idx_short(idx_short);
+        original_idx_long = find(good_today);
+        original_idx_long = original_idx_long(idx_long);
+
+        % Update stock trade count
+        stock_trade_count([original_idx_long; original_idx_short]) = stock_trade_count([original_idx_long; original_idx_short]) + 1;
 
     end
     % ---------------------------------------------------------------
